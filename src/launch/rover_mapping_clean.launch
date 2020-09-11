@@ -1,0 +1,49 @@
+<launch>
+
+    <!-- ROS BAG -->
+   <node pkg="rosbag" type="record" name="marsyard_data" output="screen" 
+         args="record -o marsyard_data /tf /zed2/left/camera_info /zed2/left/image_rect_color/compressed /zed2/right/camera_info /zed2/right/image_rect_color/compressed /zed2/imu/data"/>
+
+  
+   <!-- Teleoperation -->
+   <node name="joy_node" pkg="joy" type="joy_node">
+    <param name="dev" value="/dev/input/js0"/>
+    <param name="coalesce_interval" value="0.05"/>
+    <param name="autorepeat_rate" value="10.0"/>
+  </node>
+
+  <node name="joy_teleop_node" pkg="teleop_twist_joy" type="teleop_node">
+    <rosparam command="load" file="$(find leo_teleop)/config/joy_mapping.yaml"/>
+  </node>
+  
+  <!-- rosrun teleop_twist_keyboard teleop_twist_keyboard.py
+  <node name="teleop_twist_keyborad_node" pkg="teleop_twist_keyborad" type="teleop_twist_keyborad.py"> -->
+
+  <!-- MAPPING -->
+  <node name="rtabmap" pkg="rtabmap_ros" type="rtabmap" output="screen" args="--delete_db_on_start">
+          <param name="frame_id" type="string" value="base_link"/>
+
+          <param name="subscribe_depth" type="bool" value="true"/>
+          <param name="subscribe_scan" type="bool" value="false"/>
+          <param name="database_path" type="string" value="~/rtabmap.db"/>
+
+          <remap from="odom" to="zed2/odom"/>
+
+          <remap from="rgb/image"       to="/zed2/left/image_rect_color"/>
+          <remap from="depth/image"     to="/zed2/depth/depth_registered"/>
+          <remap from="rgb/camera_info" to="/zed2/left/camera_info"/>
+          
+          <param name="approx_sync"       value="true"/> 
+
+          <param name="queue_size" type="int" value="20"/>
+
+          <!-- RTAB-Map's parameters -->
+          <param name="RGBD/ProximityBySpace"     type="string" value="false"/>
+          <param name="RGBD/AngularUpdate"        type="string" value="0.01"/>
+          <param name="RGBD/LinearUpdate"         type="string" value="0.01"/>
+          <param name="RGBD/OptimizeFromGraphEnd" type="string" value="false"/>
+          <param name="Reg/Force3DoF"             type="string" value="true"/>
+          <param name="Vis/MinInliers"            type="string" value="12"/>
+    </node>
+
+</launch>

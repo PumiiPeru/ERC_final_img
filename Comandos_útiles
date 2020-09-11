@@ -1,0 +1,75 @@
+sudo python /root/.local/lib/python2.7/site-packages/freedomrobotics/agent.py
+sudo docker build -t erc_img --build-arg FREEDOM_URL=<url_provisto_por_freedom> .
+
+
+
+######Comandos útiles dentro de Docker##############################
+sudo docker ps -a
+
+sudo docker rm $(sudo docker ps -aq)
+
+sudo docker rmi $(sudo docker images -q)
+
+####################################################################
+
+
+1
+######Construir la imagen################################################################
+sudo docker build -t erc_sim --no-cache .                                               # 
+                                             
+xhost +local:root  
+                                        
+sudo docker run -it -v /tmp/.X11-unix:/tmp/.X11-unix -e DISPLAY --gpus all -e NVIDIA_DRIVER_CAPABILITIES=all --name erc_sim --volume="/dev:/dev" --privileged erc_sim
+#########################################################################################
+
+2
+#################################Correr dentro del contenedor#############################
+#Ejecutar el nodo de mapeo
+sudo docker exec -it erc_sim /ros_entrypoint.sh roslaunch solution rover_mapping_v1.launch  #
+
+#Ejecutar el nodo de Joystick
+sudo docker exec -it erc_sim /ros_entrypoint.sh roslaunch leo_teleop joy_teleop.launch      #
+#############################################################################################
+
+3
+###################### Lugar de los datos dentro del container #####
+cd /home/rovers/topicos						   #
+
+cd /home/rovers/mapas						   #
+
+cd /opt/ros/leo-sim/share					   #
+####################################################################
+
+
+4
+# Para acceder a un contenedor ######################################
+
+sudo docker exec -it erc_sim bash                                   #
+
+sudo docker container start --attach d98000e063e0                  #
+
+sudo docker container stop  d98000e063e0                           #
+#####################################################################
+
+5
+##########Comandos para crear el docker Hub#########################
+sudo docker tag erc_img pumiiperu/ERC_2020_traverse:latest 
+
+sudo docker tag erc_img pumiiperu/ERC_2020_traverse:1.0.0
+	  	
+sudo docker login	
+					 
+sudo docker push pumiiperu/erc_2020_test_traverse:tagname	   
+####################################################################
+
+
+6
+##############Para copiar los archivos del contenedor############################################################################################
+#Primero tienes que haberlo iniciado
+
+sudo docker exec ID_DEL_CONTENEDOR  tar Ccf $(dirname /root/rovers) - $(basename  /root/rovers) | tar Cxf /home/agama/Desktop/Pumii_Docker/Dockers_1 -
+
+##################################################################################################################################################
+
+
+
