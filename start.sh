@@ -8,6 +8,6 @@ echo "ROS_MASTER_URI=${ROS_MASTER_URI}" >> /etc/environment
 
 python /root/.local/lib/python2.7/site-packages/freedomrobotics/agent.py &
 
-roslaunch leo_gazebo leo_masyard.launch
+roslaunch leo_teleop joy_teleop.launch
 
 fg %1

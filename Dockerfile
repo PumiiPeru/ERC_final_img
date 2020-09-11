@@ -1,8 +1,8 @@
 FROM arm64v8/ros:melodic
 
 # These values will be overrided by `docker run --env <key>=<value>` command
-ENV ROS_IP 127.0.0.1
-ENV ROS_MASTER_URI http://127.0.0.1:11311
+ENV ROS_IP 10.0.0.3
+ENV ROS_MASTER_URI http://10.0.0.2:11311
 
 # Install some basic dependencies
 # Acá vamos a poner todas sus dependencias y demás 
@@ -13,6 +13,9 @@ RUN apt-get update && apt-get -y install \
   python-pip python3-pip \
   ros-melodic-joy \
   ros-melodic-rtabmap-ros \
+  ros-melodic-navigation \
+  ros-melodic-map-server \ 
+  ros-melodic-move-base \
   && rm -rf /var/lib/apt/lists/*
 
 # Set root password

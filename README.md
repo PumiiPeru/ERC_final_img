@@ -1,51 +1,239 @@
-# ERC Docker Image
+# ERC Simulation Workspace
 
-This repository contains an example Dockerfile that can be used to build a docker image that will be run on Leo Rover (ERC edition). \
-It can be used by the teams as a template for developing their custom software for the ERC competitions.
+This repository aims to provide instructions on how to install and use the Leo Rover simulation environment for the ERC competitions.
 
-This example image starts the Freedom agent which connects to your account at [Freedom Robotics App](https://app.freedomrobotics.ai/), as well as a launch file from an example package which start a ROS node that let's you save images from topics to PNG files.
+## Requirements
+
+The simulation is mainly developed and tested on [Ubuntu 18.04 Bionic Beaver](https://releases.ubuntu.com/18.04/) with [ROS Melodic Morenia](http://wiki.ros.org/melodic/Installation/Ubuntu), so it is a recommended setup. 
+
+The rest of the tools used in this guide can be installed with apt:
+```
+sudo apt install python-rosdep python-catkin-tools python-vcstool
+```
+
+There is also a dockerized version which should work on most Linux distributions running X Window Server (See [Using Docker](#using-docker) section).
 
 ## Building
 
-Login to the [Freedom Robotics App](https://app.freedomrobotics.ai/), click on **Add Device** -> **Quick Create** and copy the URL address from the command (not the whole command).
+Use the `vcstool` tool to clone the required packages:
+```
+vcs import < leo-erc.repos
+```
+Use the `rosdep` tool to install any missing dependencies. If you are running `rosdep` for the first time, you might have to run:
+```
+sudo rosdep init
+```
+first. Then, to install the dependencies, type:
+```
+rosdep update
+sudo apt update
+rosdep install --rosdistro melodic --from-paths src -iy
+```
+Now, use the `catkin` tool to build the workspace:
+```
+catkin config --extend /opt/ros/melodic
+catkin build
+```
 
-Now execute the following command as the `root` user (replace `<YOUR_URL>` with the address you copied):
+## Updating
+
+The list of the repositories may change, so make sure you have pulled the latest commit:
 ```
-docker build -t erc_img --build-arg FREEDOM_URL="<YOUR_URL>" .
+git pull
+```
+Use `vcstool` tool to clone any new repositories:
+```
+vcs import < leo-erc.repos
+```
+And pull the new commits on the already cloned ones:
+```
+vcs pull src
+```
+Then, make sure you have all the dependencies installed:
+```
+rosdep install --rosdistro melodic --from-paths src -iy
+```
+And rebuild the workspace:
+```
+catkin build
 ```
 
-## Lanching
+## Launching
 
-To run the image, simply type:
+Make sure you source the devel space on each terminal session you want to use the simulation on:
 ```
-docker run -it --net=host --name erc_img erc_img
+source devel/setup.bash
 ```
-If you want to use it with ROS running on another machine, pass the `ROS_IP` and `ROS_MASTER_URI` variables:
+To start the simulation and gazebo GUI, type:
 ```
-docker run -it --net=host -e ROS_IP=<YOUR_IP> -e ROS_MASTER_URI=<MASTER_URI> --name erc_img erc_img
+roslaunch leo_gazebo leo_marsyard.launch
+```
+For more info about available launch files and their arguments, visit the [leo_gazebo](https://github.com/LeoRover/leo_gazebo) repository.
+
+To visualize the model in Rviz, type on another terminal session:
+```
+roslaunch leo_viz rviz.launch
+```
+Turn on the `Image` panel in Rviz to show the simulated camera images.
+
+To control the Rover using a joystick, type:
+```
+roslaunch leo_teleop joy_teleop.launch
+```
+The command mapping was set for the Xbox 360 controller and looks like this:
+| Xbox 360 controller       | Command                           |
+|---------------------------|-----------------------------------|
+| RB button                 | enable - hold it to send commands |
+| Left joystick Up/Down     | linear velocity                   |
+| Right Joystick Left/Right | angular velocity                  |
+
+To modify it, you can edit the `joy_mapping.yaml` file inside the `leo_teleop` package.
+
+## ROS API
+
+The following topics and parameters are available on both the simulation and the real robot.
+
+### Subscribed topics
+
+* **`cmd_vel`** ([geometry_msgs/Twist])
+
+    Target velocity of the Rover.  
+    Only linear.x (m/s) and angular.z (r/s) are used.
+
+### Published topics
+
+* **`wheel_odom`** ([geometry_msgs/TwistStamped])
+
+    Current linear and angular velocities of the robot estimated from wheel velocities.
+
+* **`joint_states`** ([sensor_msgs/JointState])
+
+    Current state of the joints.
+
+* **`camera/image_raw`** ([sensor_msgs/Image])
+
+    Unrectified images from the hazard avoidance camera.
+
+* **`camera/image_raw/compressed`** ([sensor_msgs/CompressedImage])
+
+    JPEG-compressed images from the hazard avoidance camera.
+
+* **`camera/camera_info`** ([sensor_msgs/CameraInfo])
+
+    Calibration data for the hazard avoidance camera (see [image_pipeline/CameraInfo]).
+
+* **`zed2/left_raw/image_raw_color`** ([sensor_msgs/Image])
+
+    Unrectified color images from the left ZED2 camera.
+
+* **`zed2/left_raw/camera_info`** ([sensor_msgs/CameraInfo])
+
+    Calibration data for the left ZED2 unrectified camera.
+
+* **`zed2/left/image_rect_color`** ([sensor_msgs/Image])
+
+    Rectified color images from the left ZED2 camera.
+
+* **`zed2/left/camera_info`** ([sensor_msgs/CameraInfo])
+
+    Calibration data for the left ZED2 camera.
+
+* **`zed2/right_raw/image_raw_color`** ([sensor_msgs/Image])
+
+    Unrectified color images from the right ZED2 camera.
+
+* **`zed2/right_raw/camera_info`** ([sensor_msgs/CameraInfo])
+
+    Calibration data for the right ZED2 unrectified camera.
+
+* **`zed2/right/image_rect_color`** ([sensor_msgs/Image])
+
+    Rectified color images from the right ZED2 camera.
+
+* **`zed2/right/camera_info`** ([sensor_msgs/CameraInfo])
+
+    Calibration data for the right ZED2 camera.
+
+* **`zed2/depth/depth_registered`** ([sensor_msgs/Image])
+
+    Depth map image registered on left ZED2 camera image.
+
+* **`zed2/depth/camera_info`** ([sensor_msgs/CameraInfo])
+
+    Depth camera calibration data.
+
+* **`zed2/point_cloud/cloud_registered`** ([sensor_msgs/PointCloud2])
+
+    Registered color point cloud.
+
+* **`zed2/imu/data`** ([sensor_msgs/Imu])
+
+    Accelerometer, gyroscope, and orientation data from ZED2 IMU.
+
+### Parameters set
+
+* **`robot_description`** (type: `str`)
+
+    The URDF model of the robot.
+
+## Using Docker
+
+---
+**NOTE**
+
+The commands in this section should be executed as the `root` user, unless you have configured docker to be [managable as a non-root user](https://docs.docker.com/engine/install/linux-postinstall/).
+
+---
+
+Make sure the [Docker Engine](https://docs.docker.com/engine/install/#server) is installed and the `docker` service is running:
+```
+systemctl start docker
+```
+Build the docker image by executing:
+```
+docker build -t erc_sim .
+```
+Permit the root user to connect to X window display:
+```
+xhost +local:root
+```
+Start the docker container:
+```
+docker run --rm -it -v /tmp/.X11-unix:/tmp/.X11-unix -e DISPLAY --name erc_sim erc_sim
+```
+If you want the simulation to be able to communicate with ROS nodes running on the host or another docker container, add `--net=host` flag:
+```
+docker run --rm --net=host -it -v /tmp/.X11-unix:/tmp/.X11-unix -e DISPLAY --name erc_sim  erc_sim
+```
+Gazebo can work really slow without the GPU acceleration. \
+If you are running the system on an integrated AMD/Intel Graphics card, try adding `--device=/dev/dri` flag:
+```
+docker run --rm --device=/dev/dri -it -v /tmp/.X11-unix:/tmp/.X11-unix -e DISPLAY --name erc_sim  erc_sim
+```
+To use an Nvidia card, you need to have proprietary drivers installed, as well as the [Nvidia Container Toolkit](https://github.com/NVIDIA/nvidia-docker). \
+Add the `--gpus all` flag and set `NVIDIA_DRIVER_CAPABILITIES` variable to `all`:
+```
+docker run --rm -it -v /tmp/.X11-unix:/tmp/.X11-unix -e DISPLAY --gpus all -e NVIDIA_DRIVER_CAPABILITIES=all --name erc_sim erc_sim
+```
+To start any other ROS nodes inside the container, type:
+```
+docker exec -it erc_sim /ros_entrypoint.sh <COMMAND>
+```
+For example:
+```
+docker exec -it erc_sim /ros_entrypoint.sh roslaunch leo_viz rviz.launch
+```
+To update the docker image, you need to rebuild it with `--no-cache` option:
+```
+docker build --no-cache -t erc_sim .
 ```
 
-The Freedom agent should start and you should see the device connected on the [Freedom Robotics App](https://app.freedomrobotics.ai/).
-
-To test the image with the simulated Rover, simply start the [simulation](https://github.com/fictionlab/erc_sim_ws) on the host machine or on another docker container started with the `--net=host` option.
-
-## Using the example features
-
-The Dockerfile properly configures the image to permit SSH login. \
-On the Freedom Robotics App, click on **Settings** -> **Remote SSH** -> **Enable remote SSH**. This will open an SSH tunnel that will let you login to your container from the Internet. \
-To login, paste the resulted command into your terminal. When asked for password, type `root`.
-
-The `start.sh` script that is executed by the docker image, configures the environment, so when you login, you can already run ROS commands. \
-You can start by listing the available topics:
-```
-rostopic list
-```
-You should see the `/image_saver/save` topic which is spawned by the `image_saver` node from the `erc_example` package. \
-The node expects Image topic names on that topic and upon receiving a message, saves a single Image from the topic to a PNG file inside the container. \
-If you have the simulation running, you can try to save an image from the hazcam by executing:
-```
-rostopic pub -1 /image_saver/save std_msgs/String "data: '/camera/image_raw'"
-```
-An image should be saved inside the `/root/.ros` directory.
-
-You can also use Freedom Robotics App to send messages on this topic, by going to **Settings** -> **Send command**.
+[geometry_msgs/Twist]: http://docs.ros.org/api/geometry_msgs/html/msg/Twist.html
+[geometry_msgs/TwistStamped]: http://docs.ros.org/api/geometry_msgs/html/msg/TwistStamped.html
+[sensor_msgs/JointState]: http://docs.ros.org/api/sensor_msgs/html/msg/JointState.html
+[sensor_msgs/Image]: http://docs.ros.org/api/sensor_msgs/html/msg/Image.html
+[sensor_msgs/CompressedImage]: http://docs.ros.org/api/sensor_msgs/html/msg/CompressedImage.html
+[sensor_msgs/CameraInfo]: http://docs.ros.org/api/sensor_msgs/html/msg/CameraInfo.html
+[image_pipeline/CameraInfo]: http://wiki.ros.org/image_pipeline/CameraInfo
+[sensor_msgs/PointCloud2]: http://docs.ros.org/api/sensor_msgs/html/msg/PointCloud2.html
+[sensor_msgs/Imu]: http://docs.ros.org/api/sensor_msgs/html/msg/Imu.html
