@@ -1,52 +1,105 @@
+# ERC Docker Image
 
-## Using Docker
+This repository contains an example Dockerfile that can be used to build a docker image that will be run on Leo Rover (ERC edition). \
+It can be used by the teams as a template for developing their custom software for the ERC competitions.
 
----
-**NOTE**
+This example image starts the Freedom agent which connects to your account at [Freedom Robotics App](https://app.freedomrobotics.ai/), as well as a launch file from an example package which start a ROS node that let's you save images from topics to PNG files.
 
-The commands in this section should be executed as the `root` user, unless you have configured docker to be [managable as a non-root user](https://docs.docker.com/engine/install/linux-postinstall/).
+## Building
 
----
+Login to the [Freedom Robotics App](https://app.freedomrobotics.ai/), click on **Add Device** -> **Quick Create** and copy the URL address from the command (not the whole command).
 
-Make sure the [Docker Engine](https://docs.docker.com/engine/install/#server) is installed and the `docker` service is running:
+Now execute the following command as the `root` user (replace `<YOUR_URL>` with the address you copied):
 ```
-systemctl start docker
+docker build -t erc_img --build-arg FREEDOM_URL="<YOUR_URL>" .
 ```
-Build the docker image by executing:
+
+### Building for Leo Rover
+
+On the competitions, the docker images will be run on the Nvidia Jetson Xavier NX platform which runs on a 64 bit ARM architecture. The images that will be run on the robot also need to be built for this architecture. Otherwise, Jetson will try to emulate to target architecture which will make the software run a lot slower and is prone to errors.
+
+To do this, you can either:
+
+1. Build the image on a Linux machine running 64 bit ARM architecture. 
+2. Use [Docker Buildx](https://docs.docker.com/buildx/working-with-buildx/) to build the image for `linux/arm64` platform using QEMU emulation.
+
+To do 1. :
+
+Check if you have the correct architecture by typing:
 ```
-docker build -t erc_sim .
+uname -m
 ```
-Permit the root user to connect to X window display:
+You should see `aarch64`. \
+Then, follow the steps from the `Building` section.
+
+To do 2. :
+
+[Here](https://medium.com/@artur.klauser/building-multi-architecture-docker-images-with-buildx-27d80f7e2408) is a great, detailed instruction on building multi-architecture images using the Docker Buildx utility. 
+
+In short, here's what you have to do:
+
+You need to have `binfmt_misc` feature enabled on your system and statically linked QEMU binaries installed. The easiest way to install and register the QEMU binaries is to use a Docker Image based installation:
 ```
-xhost +local:root
+docker run --rm --privileged multiarch/qemu-user-static --reset -p yes
 ```
-Start the docker container:
+To gain access to the `docker buildx` command, you need to enable experimental Docker CLI features:
 ```
-docker run --rm -it -v /tmp/.X11-unix:/tmp/.X11-unix -e DISPLAY --name erc_sim erc_sim
+export DOCKER_CLI_EXPERIMENTAL=enabled
 ```
-If you want the simulation to be able to communicate with ROS nodes running on the host or another docker container, add `--net=host` flag:
+Create a new Buildx Builder (if you did'nt create one before):
 ```
-docker run --rm --net=host -it -v /tmp/.X11-unix:/tmp/.X11-unix -e DISPLAY --name erc_sim  erc_sim
+docker buildx create --name mybuilder
 ```
-Gazebo can work really slow without the GPU acceleration. \
-If you are running the system on an integrated AMD/Intel Graphics card, try adding `--device=/dev/dri` flag:
+Set the current builder instance and bootstrap it:
 ```
-docker run --rm --device=/dev/dri -it -v /tmp/.X11-unix:/tmp/.X11-unix -e DISPLAY --name erc_sim  erc_sim
+docker buildx use mybuilder
+docker buildx inspect --bootstrap
 ```
-To use an Nvidia card, you need to have proprietary drivers installed, as well as the [Nvidia Container Toolkit](https://github.com/NVIDIA/nvidia-docker). \
-Add the `--gpus all` flag and set `NVIDIA_DRIVER_CAPABILITIES` variable to `all`:
+You should see `linux/arm64` amoung the available Platforms. \
+Now, build the image:
 ```
-docker run --rm -it -v /tmp/.X11-unix:/tmp/.X11-unix -e DISPLAY --gpus all -e NVIDIA_DRIVER_CAPABILITIES=all --name erc_sim erc_sim
+docker buildx build --load -t erc_img_arm --platform linux/arm64 --build-arg FREEDOM_URL="<YOUR_URL>" .
 ```
-To start any other ROS nodes inside the container, type:
+
+### Deploying the image
+
+The easiest way to deploy the image is to save it to a tar archive using the `docker save` command:
 ```
-docker exec -it erc_sim /ros_entrypoint.sh <COMMAND>
+docker save erc_img_arm -o erc_img_arm.tar
 ```
-For example:
+
+## Lanching
+
+To run the image, simply type:
 ```
-docker exec -it erc_sim /ros_entrypoint.sh roslaunch leo_viz rviz.launch
+docker run -it --net=host --name erc_img erc_img
 ```
-To update the docker image, you need to rebuild it with `--no-cache` option:
+If you want to use it with ROS running on another machine, pass the `ROS_IP` and `ROS_MASTER_URI` variables:
 ```
-docker build --no-cache -t erc_sim .
+docker run -it --net=host -e ROS_IP=<YOUR_IP> -e ROS_MASTER_URI=<MASTER_URI> --name erc_img erc_img
 ```
+
+The Freedom agent should start and you should see the device connected on the [Freedom Robotics App](https://app.freedomrobotics.ai/).
+
+To test the image with the simulated Rover, simply start the [simulation](https://github.com/fictionlab/erc_sim_ws) on the host machine or on another docker container started with the `--net=host` option.
+
+## Using the example features
+
+The Dockerfile properly configures the image to permit SSH login. \
+On the Freedom Robotics App, click on **Settings** -> **Remote SSH** -> **Enable remote SSH**. This will open an SSH tunnel that will let you login to your container from the Internet. \
+To login, paste the resulted command into your terminal. When asked for password, type `root`.
+
+The `start.sh` script that is executed by the docker image, configures the environment, so when you login, you can already run ROS commands. \
+You can start by listing the available topics:
+```
+rostopic list
+```
+You should see the `/image_saver/save` topic which is spawned by the `image_saver` node from the `erc_example` package. \
+The node expects Image topic names on that topic and upon receiving a message, saves a single Image from the topic to a PNG file inside the container. \
+If you have the simulation running, you can try to save an image from the hazcam by executing:
+```
+rostopic pub -1 /image_saver/save std_msgs/String "data: '/camera/image_raw'"
+```
+An image should be saved inside the `/root/.ros` directory.
+
+You can also use Freedom Robotics App to send messages on this topic, by going to **Settings** -> **Send command**.
